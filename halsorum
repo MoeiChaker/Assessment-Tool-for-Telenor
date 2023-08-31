@@ -22,14 +22,24 @@ kpis = {
 criteria = {
     "SNR": [(25, float('inf'), 'Good'), (15, 25, 'Moderate'), (0, 15, 'Bad')],
     "Packet Loss": [(0, 1, 'Good'), (1, 2.5, 'Moderate'), (2.5, float('inf'), 'Bad')],
-    "RSSI": [(-30, -67, 'Good'), (-67, -80, 'Moderate'), (-80, float('-inf'), 'Bad')],
+    "RSSI": [(-56, -30, 'Good'), (-67, -56, 'Moderate'), (float('-inf'), -67, 'Bad')],
     "ES": [(0, 10, 'Good'), (10, 50, 'Moderate'), (50, float('inf'), 'Bad')],
     "Latency": [(0, 100, 'Good'), (100, 300, 'Moderate'), (300, float('inf'), 'Bad')],
     "Throughput": [(50, float('inf'), 'Good'), (10, 50, 'Moderate'), (0, 10, 'Bad')],
     "RSRP": [(-80, float('inf'), 'Good'), (-100, -80, 'Moderate'), (-100, float('-inf'), 'Bad')],
     "RSRQ": [(-10, float('inf'), 'Good'), (-15, -10, 'Moderate'), (-15, float('-inf'), 'Bad')],
-    "CQI":[(15, 10, 'Good'), (10, 5, 'Moderate'), (5, 1, 'Bad')],
+    "CQI": [(10, 15, 'Good'), (5, 10, 'Moderate'), (1, 5, 'Bad')],
 }
+
+def categorize_kpi(kpi_name, value):
+    """Categorize a given KPI value based on the provided criteria."""
+    # Fetch the criteria for the given KPI
+    kpi_criteria = criteria.get(kpi_name, [])
+    
+    for lower, upper, category in kpi_criteria:
+        if lower <= value < upper:
+            return category
+    return "Unknown"  # Default category if none of the criteria match
 
 # Present KPIs in a numbered list
 print("Available KPIs:")
@@ -77,7 +87,9 @@ for cell in cells:
         mean = row.mean(axis=1).values[0]
         median = row.median(axis=1).values[0]
         std_dev = row.std(axis=1).values[0]  # calculate standard deviation
-        category = next((cat for lower, upper, cat in criteria[kpi] if lower <= mean < upper), 'Unknown')
+        
+        # Use the generalized categorize_kpi function
+        category = categorize_kpi(kpi, mean)
         
         # Store the results in the list
         results.append({
@@ -121,7 +133,10 @@ else:
     ax.plot(timestamps, result['row'].values[0, :len(timestamps)], label=result['kpi'])
     colors = {'Good': 'green', 'Moderate': 'yellow', 'Bad': 'red'}
     for lower, upper, cat in criteria[result['kpi']]:
-        ax.axhline(y=lower, color=colors[cat], linestyle='--', label=f"{cat} boundary")
+        if cat == "Good":
+            ax.axhline(y=lower, color=colors[cat], linestyle='--', label=f"{cat} boundary")
+        elif cat == "Bad":
+            ax.axhline(y=upper, color=colors[cat], linestyle='--', label=f"{cat} boundary")
     ax.legend()
 
     # Set the format of the x-axis labels
