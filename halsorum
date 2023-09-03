@@ -22,7 +22,7 @@ kpis = {
 criteria = {
     "SNR": [(25, float('inf'), 'Good'), (15, 25, 'Moderate'), (0, 15, 'Bad')],
     "Packet Loss": [(0, 1, 'Good'), (1, 2.5, 'Moderate'), (2.5, float('inf'), 'Bad')],
-    "RSSI": [(-56, -30, 'Good'), (-67, -56, 'Moderate'), (float('-inf'), -67, 'Bad')],
+    "RSSI": [(-67, -30, 'Good'), (-80, -67, 'Moderate'), (float('-inf'), -80, 'Bad')],
     "ES": [(0, 10, 'Good'), (10, 50, 'Moderate'), (50, float('inf'), 'Bad')],
     "Latency": [(0, 100, 'Good'), (100, 300, 'Moderate'), (300, float('inf'), 'Bad')],
     "Throughput": [(50, float('inf'), 'Good'), (10, 50, 'Moderate'), (0, 10, 'Bad')],
@@ -33,105 +33,91 @@ criteria = {
 
 def categorize_kpi(kpi_name, value):
     """Categorize a given KPI value based on the provided criteria."""
-    # Fetch the criteria for the given KPI
     kpi_criteria = criteria.get(kpi_name, [])
-    
     for lower, upper, category in kpi_criteria:
         if lower <= value < upper:
             return category
-    return "Unknown"  # Default category if none of the criteria match
+    return "Unknown"
 
-# Present KPIs in a numbered list
 print("Available KPIs:")
 for i, (kpi, unit) in enumerate(kpis.items(), start=1):
     print(f"{i}. {kpi} ({unit})")
 
-# Get user's choices
 selected_indices = input("Enter the numbers of the KPIs you want to evaluate, separated by commas: ")
 selected_indices = [int(index.strip()) - 1 for index in selected_indices.split(',')]
-
-# Convert selected indices to KPI names
 selected_kpis = [list(kpis.keys())[i] for i in selected_indices]
 
-# Load data
 dfs = {}
 for kpi in selected_kpis:
     filename = input(f"Please enter the filename of the CSV file for {kpi}: ")
     df = pd.read_csv(filename, sep=';')
-    df.drop(df.columns[2], axis=1, inplace=True) # Drop column C
+    df.drop(df.columns[2], axis=1, inplace=True)
     dfs[kpi] = df
 
-# Get the partial cell names from the user
 partial_cells = input("Please enter the partial cell names to look for, separated by commas: ")
 partial_cells = [cell.strip() for cell in partial_cells.split(',')]
-
-# Find all cells that contain the partial names in their names
 cells = set(cell for df in dfs.values() for partial_cell in partial_cells for cell in df['Short name'] if partial_cell in cell)
 
-# Prepare an empty list to store the results
 results = []
 
-# Process data for each cell
 for cell in cells:
     cell_rows = {kpi: df[df['Short name'] == cell] for kpi, df in dfs.items()}
-    
-    # Skip this cell if it's not in all DataFrames
     if not all(row.shape[0] == 1 for row in cell_rows.values()):
         continue
 
-    # Process data for each KPI
     for kpi, row in cell_rows.items():
         row = row.drop(['Short name', 'CITY.CellTracker.eCell'], axis=1)
         row = row.apply(pd.to_numeric, errors='coerce')
         row.fillna(row.mean(axis=0), inplace=True)
         mean = row.mean(axis=1).values[0]
+
+        if mean == 0:
+            row.iloc[0, :] = np.nan
+
         median = row.median(axis=1).values[0]
-        std_dev = row.std(axis=1).values[0]  # calculate standard deviation
+
+        if median == 0:
+            row.iloc[0, :] = np.nan
         
-        # Use the generalized categorize_kpi function
-        category = categorize_kpi(kpi, mean)
+        std_dev = row.std(axis=1).values[0]
         
-        # Store the results in the list
+        # Categorize both mean and median values
+        category_mean = categorize_kpi(kpi, mean)
+        category_median = categorize_kpi(kpi, median)
+
         results.append({
             'cell': cell,
             'kpi': kpi,
             'mean': mean,
             'median': median,
             'std_dev': std_dev,
-            'category': category,
+            'category_mean': category_mean,
+            'category_median': category_median,
             'row': row
         })
 
-# Filter out cells that have only nan values and notify the user about them
 results = [result for result in results if not np.isnan(result['std_dev'])]
+
 if not results:
     print("No valid results found.")
     print("Cells with only nan values:", ', '.join(cells))
 else:
     results.sort(key=lambda x: x['std_dev'])
-
-    # Print the results
     for result in results:
         print(f"\nThe mean {result['kpi']} for Cell '{result['cell']}' is {result['mean']:.2f}, "
-            f"which is categorized as '{result['category']}'.")
-        print(f"The median {result['kpi']} for Cell '{result['cell']}' is {result['median']:.2f}, " 
-              f"which is categorised as '{result['category']}'.")
-        print(f"The standard deviation of {result['kpi']} for Cell '{result['cell']}' is {result['std_dev']:.2f}.") 
+              f"which is categorised as '{result['category_mean']}'.")
+        print(f"The median {result['kpi']} for Cell '{result['cell']}' is {result['median']:.2f}, "
+              f"which is categorised as '{result['category_median']}'.")
+        print(f"The standard deviation of {result['kpi']} for Cell '{result['cell']}' is {result['std_dev']:.2f}.")
 
-    # Only generate and display graph for the cell with the smallest standard deviation
     result = results[0]
-
-    # Add information whether this cell has the smallest standard deviation among multiple cells
     graph_title_suffix = f" (Cell with Smallest Standard Deviation among {len(cells)} cells)" if len(cells) > 1 else ""
-
-    # Convert the column names (strings representing timestamps) to datetime objects
     date_pattern = re.compile(r"\d{2}/\d{2}/\d{2}, \d{2}:\d{2}")
     timestamps = pd.to_datetime([col for col in result['row'].columns if date_pattern.match(col)], format='%d/%m/%y, %H:%M')
 
-    # Plot the line graph
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(timestamps, result['row'].values[0, :len(timestamps)], label=result['kpi'])
-    colors = {'Good': 'green', 'Moderate': 'yellow', 'Bad': 'red'}
+    colors = {'Good': 'green', 'Bad': 'red'}
     for lower, upper, cat in criteria[result['kpi']]:
         if cat == "Good":
             ax.axhline(y=lower, color=colors[cat], linestyle='--', label=f"{cat} boundary")
@@ -139,7 +125,6 @@ else:
             ax.axhline(y=upper, color=colors[cat], linestyle='--', label=f"{cat} boundary")
     ax.legend()
 
-    # Set the format of the x-axis labels
     date_format = mdates.DateFormatter('%d/%m/%y, %H:%M')
     ax.xaxis.set_major_formatter(date_format)
 
