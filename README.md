@@ -2,7 +2,7 @@
 ## Background:
 Rural healthcare, particularly in regions with an ageing demographic, faces significant challenges that necessitate innovative strategies to alleviate resource pressures. One promising approach is self-health care, where individuals manage routine health checks independently. However, the efficacy of such a solution heavily relies on a robust and dependable network infrastructure.
 
-In light of this need, research led to the development of a tool to assist Telenor in evaluating cell reliability. This tool is designed to analyze data focusing on crucial parameters that gauge cell reliability. A distinguishing feature is its capability to pinpoint the most reliable cell within a site with multiple cells. Research indicates that cells showcasing minimal standard deviation in these parameters tend to be more consistent and reliable.
+In light of this need, research led to the development of a tool to assist Telenor in evaluating cell reliability. This tool is designed to analyze data focusing on crucial parameters that gauge cell reliability. An imporant feature is its capability to pinpoint the most reliable cell within a site with multiple cells. Research indicates that cells showcasing minimal standard deviation in these parameters tend to be more consistent and reliable.
 
 ## Features:
 * Evaluation of various Key Performance Indicators (KPIs) crucial for cell network performance.
